@@ -5,6 +5,33 @@ namespace TestDoublesExercise.Tests;
 
 public sealed class ReservationServiceTests
 {
+    [Fact]
+    public void Constructor_NullAvailability_Throws()
+    {
+        // Act
+        Action action = () => new ReservationService(null!, new ReservationRepositoryStub(), new ConfirmationSenderSpy());
+        // Assert
+        Assert.Throws<ArgumentNullException>(action);
+    }
+
+    [Fact]
+    public void Constructor_NullRepository_Throws()
+    {
+        // Act
+        Action action = () => new ReservationService(new SeatAvailabilityStub(), null!, new ConfirmationSenderSpy());
+        // Assert
+        Assert.Throws<ArgumentNullException>(action);
+    }
+
+    [Fact]
+    public void Constructor_NullSender_Throws()
+    {
+        // Act
+        Action action = () => new ReservationService(new SeatAvailabilityStub(), new ReservationRepositoryStub(), null!);
+        // Assert
+        Assert.Throws<ArgumentNullException>(action);
+    }
+
     [Theory]
     [InlineData(3, 2, true)]
     [InlineData(1, 2, false)]
@@ -150,6 +177,46 @@ public sealed class ReservationServiceTests
         Assert.Equal("customerEmail", exception.ParamName);
         Assert.Empty(availability.Calls);
         repository.Verify(r => r.TrySave(It.IsAny<Reservation>()), Times.Never());
+        repository.VerifyNoOtherCalls();
+        Assert.Empty(sender.Sent);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Reserve_MissingEmail_ThrowsWithoutCallingDependencies(string? email)
+    {
+        // Arrange
+        var availability = new SeatAvailabilityStub();
+        var repository = new Mock<IReservationRepository>(MockBehavior.Strict);
+        var sender = new ConfirmationSenderSpy();
+        var service = new ReservationService(availability, repository.Object, sender);
+        // Act
+        var exception = Assert.Throws<ArgumentException>(() => service.Reserve(email!, "KONZERT", 2));
+        // Assert
+        Assert.Equal("customerEmail", exception.ParamName);
+        Assert.Empty(availability.Calls);
+        repository.VerifyNoOtherCalls();
+        Assert.Empty(sender.Sent);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Reserve_MissingEventCode_ThrowsWithoutCallingDependencies(string? eventCode)
+    {
+        // Arrange
+        var availability = new SeatAvailabilityStub();
+        var repository = new Mock<IReservationRepository>(MockBehavior.Strict);
+        var sender = new ConfirmationSenderSpy();
+        var service = new ReservationService(availability, repository.Object, sender);
+        // Act
+        var exception = Assert.Throws<ArgumentException>(() => service.Reserve("anna@example.com", eventCode!, 2));
+        // Assert
+        Assert.Equal("eventCode", exception.ParamName);
+        Assert.Empty(availability.Calls);
         repository.VerifyNoOtherCalls();
         Assert.Empty(sender.Sent);
     }

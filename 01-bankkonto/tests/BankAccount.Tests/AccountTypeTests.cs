@@ -61,6 +61,29 @@ public sealed class AccountTypeTests
     }
 
     [Fact]
+    public void YouthAccount_BirthdayTomorrow_IsStillUnderTwenty()
+    {
+        // Arrange
+        DateOnly birthDate = new(2006, 1, 2);
+        // Act
+        YouthAccount account = new(Today, birthDate, ZeroRates, 500m);
+        // Assert
+        Assert.Equal(birthDate, account.BirthDate);
+    }
+
+    [Fact]
+    public void YouthAccount_AllowsWithdrawalAtExactBalanceAndLimit()
+    {
+        // Arrange
+        YouthAccount account = new(Today, Today.AddYears(-15), ZeroRates, 100m);
+        account.Deposit(100m, Today);
+        // Act
+        account.Withdraw(100m, Today);
+        // Assert
+        Assert.Equal(0m, account.Balance);
+    }
+
+    [Fact]
     public void YouthAccount_EnforcesWithdrawalLimitAndBalance()
     {
         // Arrange
@@ -122,6 +145,38 @@ public sealed class AccountTypeTests
     }
 
     [Fact]
+    public void CheckingAccount_ResetsFreePaymentsAfterYearClose()
+    {
+        // Arrange
+        CheckingAccount account = Checking(paymentFee: 2m);
+        BasicAccount target = new(Today, ZeroRates);
+        account.Deposit(1_000m, Today);
+        for (int i = 0; i < CheckingAccount.FreePaymentsPerYear; i++)
+        {
+            account.Pay(target, 10m, Today);
+        }
+        // Act
+        account.CloseYear(Today.AddYears(1));
+        account.Pay(target, 10m, Today.AddYears(1));
+        // Assert
+        Assert.Equal(890m, account.Balance);
+        Assert.Equal(110m, target.Balance);
+    }
+
+    [Theory]
+    [InlineData(-1, 0, 0)]
+    [InlineData(0, -1, 0)]
+    [InlineData(0, 0, -1)]
+    public void CheckingAccount_NegativeFeesOrLimit_Throws(
+        decimal overdraft, decimal annualFee, decimal paymentFee)
+    {
+        // Act
+        Action action = () => new CheckingAccount(Today, ZeroRates, overdraft, annualFee, paymentFee);
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>(action);
+    }
+
+    [Fact]
     public void BankRates_EnforceAccountTypeRates()
     {
         // Arrange / Act
@@ -129,6 +184,44 @@ public sealed class AccountTypeTests
         // Assert
         Assert.True(rates.Checking.Credit < rates.Savings.Credit);
         Assert.True(rates.Youth.Credit > rates.Savings.Credit);
+    }
+
+    [Theory]
+    [InlineData(0.01, 0.01, 0.02)]
+    [InlineData(0.01, 0.02, 0.02)]
+    public void BankRates_RejectsInvalidAccountTypeRates(
+        decimal checkingRate, decimal savingsRate, decimal youthRate)
+    {
+        // Arrange / Act
+        Action action = () => new BankRates(
+            new InterestRates(checkingRate, 0m),
+            new InterestRates(savingsRate, 0m),
+            new InterestRates(youthRate, 0m));
+        // Assert
+        Assert.Throws<ArgumentException>(action);
+    }
+
+    [Fact]
+    public void SavingsAccount_AllowsWithdrawalOfEntireBalance()
+    {
+        // Arrange
+        SavingsAccount account = new(Today, ZeroRates);
+        account.Deposit(100m, Today);
+        // Act
+        account.Withdraw(100m, Today);
+        // Assert
+        Assert.Equal(0m, account.Balance);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    public void YouthAccount_NonPositiveWithdrawalLimit_Throws(decimal limit)
+    {
+        // Act
+        Action action = () => new YouthAccount(Today, Today.AddYears(-15), ZeroRates, limit);
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>(action);
     }
 
     private static CheckingAccount Checking(decimal overdraft = 500m, decimal annualFee = 0m, decimal paymentFee = 0m)

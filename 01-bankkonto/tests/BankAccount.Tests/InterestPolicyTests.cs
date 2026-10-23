@@ -26,4 +26,39 @@ public sealed class InterestPolicyTests
         // Assert
         Assert.Equal(expected, actual);
     }
+
+    [Fact]
+    public void CreditRate_NegativeBalance_Throws()
+    {
+        // Act
+        Action action = () => InterestPolicy.CreditRate(-0.01m, AccountStatus.Standard, 0.01m);
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>(action);
+    }
+
+    [Theory]
+    [InlineData(1_000, 0.01, 0.02778)]
+    [InlineData(-1_000, 0.036, -0.1)]
+    public void DailyInterest_UsesCreditOrDebitRate(decimal balance, decimal rate, decimal expected)
+    {
+        // Arrange
+        InterestRates rates = balance >= 0
+            ? new InterestRates(rate, 0m)
+            : new InterestRates(0m, rate);
+        // Act
+        decimal actual = InterestPolicy.DailyInterest(balance, AccountStatus.Standard, rates);
+        // Assert
+        Assert.Equal(expected, decimal.Round(actual, 5));
+    }
+
+    [Theory]
+    [InlineData(-0.01, 0)]
+    [InlineData(0, -0.01)]
+    public void InterestRates_NegativeRate_Throws(decimal credit, decimal debit)
+    {
+        // Act
+        Action action = () => new InterestRates(credit, debit);
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>(action);
+    }
 }
